@@ -7,6 +7,8 @@ use actix_web::{
 use actix_web_lab::sse::{self, ChannelStream, Sse};
 use std::{process::Command, sync::Mutex};
 
+mod search;
+
 async fn youtube(path: web::Path<String>) -> impl Responder {
     let id = path.into_inner();
     let url = format!("https://www.youtube.com/watch?v={}", id);
@@ -65,41 +67,10 @@ async fn send_message(path: web::Path<String>, sender: web::Data<Message>) -> im
     format!("send {}", msg)
 }
 
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MusicData {
-    title: String,
-    id: String,
-    thumbnail: String,
-}
-
-impl MusicData {
-    fn new(keyword: &str) -> Vec<Self> {
-        let mut vec = vec![];
-
-        let output = Command::new("yt-dlp")
-            .arg(format!("ytsearch:{}", keyword))
-            .args(["--get-title", "--get-thumbnail", "--get-id"])
-            .output()
-            .unwrap();
-        let output = String::from_utf8(output.stdout).unwrap();
-        let output = output.split('\n').collect::<Vec<_>>();
-
-        for out in output.chunks(4) {
-            vec.push(MusicData {
-                title: out[0].to_string(),
-                id: out[1].to_string(),
-                thumbnail: out[2].to_string(),
-            })
-        }
-
-        vec
-    }
-}
-
 async fn search(path: web::Path<String>) -> impl Responder {
-    web::Json(MusicData::new(&path.into_inner()))
+    let keyword = path.into_inner();
+    let output = crate::search::search(keyword).await.unwrap();
+    web::Json(output)
 }
 
 #[get("/download/{id}")]
